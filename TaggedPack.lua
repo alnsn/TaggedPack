@@ -31,38 +31,41 @@ local loadstring = load or loadstring
 -- (1) string.unpack() format string and (2) an array of field names.
 -- For instance, split_def_chunk("i4J:foo:bar") returns "i4J", { "foo", "bar" }.
 local function split_def_chunk(chunk)
-	local fields = {}
+	local tags = {}
 	local colon = chunk:find(":")
 	local packstr = colon and chunk:sub(1, colon - 1) or chunk
 	for s in chunk:sub(#packstr + 1):gmatch("[^:%s]+") do
-		table.insert(fields, s)
+		table.insert(tags, s)
 	end
-	return packstr,fields
+	return packstr, tags
 end
 
 local function parse(def)
 	local packstr = ""
-	local fields = {}
+	local tags = {}
 
 	for _,chunk in ipairs(def) do
-		local new_packstr, new_fields = split_def_chunk(chunk)
+		local new_packstr, new_tags = split_def_chunk(chunk)
 		packstr = packstr .. new_packstr
-		for j=1,#new_fields do
-			table.insert(fields, new_fields[j])
+		for j=1,#new_tags do
+			table.insert(tags, new_tags[j])
 		end
 	end
 
-	return packstr, fields
+	return packstr, tags
 end
 
 function _M.define(def)
 	def = type(def) == "table" and def or { def }
-	local packstr, fields = parse(def)
+	local packstr, tags = parse(def)
 
 	local unrolled_unpack = "local res,unpacked=...;"
-	for i=1,#fields do
-		unrolled_unpack = unrolled_unpack ..
-		    string.format(";res[%q]=unpacked[%d]", fields[i], i)
+	for i=1,#tags do
+		local tag = tags[i]
+		if tag ~= "_" then
+			unrolled_unpack = unrolled_unpack ..
+			    string.format(";res[%q]=unpacked[%d]", tag, i)
+		end
 	end
 
 	local unrolled_unpack_fn = assert(loadstring(unrolled_unpack))
@@ -72,15 +75,12 @@ function _M.define(def)
 		res = res or {}
 		local unpacked = { unpack_fn(packstr, obj, pos) }
 		unrolled_unpack_fn(res, unpacked)
-		--for i=1,#fields do
-		--	res[fields[i]] = unpacked[i]
-		--end
 		return res, unpacked[#unpacked]
 	end
 
 	-- XXX local function pack()
 
-	return { packstr=packstr, fields=fields, unpack=unpack }
+	return { packstr=packstr, tags=tags, unpack=unpack }
 end
 
 return _M
