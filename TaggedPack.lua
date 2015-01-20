@@ -1,24 +1,34 @@
 -- TaggedPack module.
+--
+-- The module adds tags (or names) to types defined by string.unpack()
+-- format string. In other words, instead of working with numbered
+-- objects returned by string.unpack(), this module lets you work
+-- with a single table which stores all objects by names (tags).
+--
+-- 1) to define a new tagged pack for
+-- `struct hdr { uint32_t size; char type[8]; } __attribute__((packed));`
+-- stored in little endian order:
+--
+-- local tagged_pack = require "TaggedPack"
+-- local hdr_def = tagged_pack.define { "!1<", "I32:size", "c8:type" }
+--
+-- 2) to unpack a hdr object from a buffer:
+--
+-- local hdr, next_pos = hdr_def.unpack(buffer, cur_pos)
+-- print(hdr.size, hdr.type)
+--
+-- 3) to pack a hdr object:
+-- local raw = hdr_def.pack(hdr)
+--
+-- XXX document syntax
+-- XXX Implement TaggedPack.pack()
+
 local _M = {}
 
--- XXX impement string.pack format string parsing and
--- 
---[[
-local have_ffi,ffi = pcall(require, "ffi")
-
-local function is_big_endian()
-	local src = ffi.new("uint32_t[1]", 255)
-	local dst = ffi.new("uint8_t[4]")
-	ffi.copy(dst, src, 4)
-	return dst[3] ~= 0
-end
-
--- XXX Plain Lua doesn't detect big endian.
-local big = have_ffi and is_big_endian()
-]]--
+local loadstring = load or loadstring
 
 -- Split one chunk of TaggedPack definition and return two values:
--- (1) string.pack format string and (2) an array of field names.
+-- (1) string.unpack() format string and (2) an array of field names.
 -- For instance, split_def_chunk("i4J:foo:bar") returns "i4J", { "foo", "bar" }.
 local function split_def_chunk(chunk)
 	local fields = {}
@@ -49,14 +59,25 @@ function _M.define(def)
 	def = type(def) == "table" and def or { def }
 	local packstr, fields = parse(def)
 
+	local unrolled_unpack = "res,unpacked=...;"
+	for i=1,#fields do
+		unrolled_unpack = unrolled_unpack ..
+		    string.format(";res[%q]=unpacked[%d]", fields[i], i)
+	end
+
+	local unrolled_unpack_fn = assert(loadstring(unrolled_unpack))
+
 	local function unpack(obj, pos, res)
 		res = res or {}
 		local unpacked = { packstr:unpack(obj, pos) }
-		for i=1,#fields do
-			res[fields[i]] = unpacked[i]
-		end
+		unrolled_unpack_fn(res, unpacked)
+		--for i=1,#fields do
+		--	res[fields[i]] = unpacked[i]
+		--end
 		return res, unpacked[#unpacked]
 	end
+
+	-- XXX local function pack()
 
 	return { packstr=packstr, fields=fields, unpack=unpack }
 end
