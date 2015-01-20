@@ -66,10 +66,11 @@ function _M.define(def)
 	end
 
 	local unrolled_unpack_fn = assert(loadstring(unrolled_unpack))
+	local unpack_fn = string.unpack
 
 	local function unpack(obj, pos, res)
 		res = res or {}
-		local unpacked = { packstr:unpack(obj, pos) }
+		local unpacked = { unpack_fn(packstr, obj, pos) }
 		unrolled_unpack_fn(res, unpacked)
 		--for i=1,#fields do
 		--	res[fields[i]] = unpacked[i]
