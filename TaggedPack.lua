@@ -59,7 +59,7 @@ function _M.define(def)
 	def = type(def) == "table" and def or { def }
 	local packstr, fields = parse(def)
 
-	local unrolled_unpack = "res,unpacked=...;"
+	local unrolled_unpack = "local res,unpacked=...;"
 	for i=1,#fields do
 		unrolled_unpack = unrolled_unpack ..
 		    string.format(";res[%q]=unpacked[%d]", fields[i], i)
