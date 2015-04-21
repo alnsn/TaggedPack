@@ -9,8 +9,8 @@
 -- `struct hdr { uint32_t size; char type[8]; } __attribute__((packed));`
 -- stored in little endian order:
 --
--- local tagged_pack = require "TaggedPack"
--- local hdr_def = tagged_pack.define { "!1<", "I32:size", "c8:type" }
+-- local tgpack = require "TaggedPack"
+-- local hdr_def = tgpack.define { "!1<", "I32:size", "c8:type" }
 --
 -- 2) to unpack a hdr object from a buffer:
 --
@@ -25,6 +25,12 @@
 
 local _M = {}
 
+local function ffiunpack()
+	local ffi = require "ffi"
+	return string.unpack -- XXX load ffiunpack
+end
+
+local str_unpack = string.unpack or ffiunpack()
 local loadstring = load or loadstring
 
 -- Split one chunk of TaggedPack definition and return two values:
@@ -44,10 +50,10 @@ local function parse(def)
 	local packstr = ""
 	local tags = {}
 
-	for _,chunk in ipairs(def) do
+	for _, chunk in ipairs(def) do
 		local new_packstr, new_tags = split_def_chunk(chunk)
 		packstr = packstr .. new_packstr
-		for j=1,#new_tags do
+		for j = 1, #new_tags do
 			table.insert(tags, new_tags[j])
 		end
 	end
@@ -59,21 +65,20 @@ function _M.define(def)
 	def = type(def) == "table" and def or { def }
 	local packstr, tags = parse(def)
 
-	local unrolled_unpack = "local res,unpacked=...;"
-	for i=1,#tags do
+	local unrolled_unpack = "local res, unpacked = ..."
+	for i = 1, #tags do
 		local tag = tags[i]
 		if tag ~= "_" then
 			unrolled_unpack = unrolled_unpack ..
-			    string.format(";res[%q]=unpacked[%d]", tag, i)
+			    string.format(";res[%q] = unpacked[%d]", tag, i)
 		end
 	end
 
 	local unrolled_unpack_fn = assert(loadstring(unrolled_unpack))
-	local unpack_fn = string.unpack
 
 	local function unpack(obj, pos, res)
 		res = res or {}
-		local unpacked = { unpack_fn(packstr, obj, pos) }
+		local unpacked = { str_unpack(packstr, obj, pos) }
 		unrolled_unpack_fn(res, unpacked)
 		return res, unpacked[#unpacked]
 	end
